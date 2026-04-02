@@ -1,0 +1,27 @@
+# ── API Framework ──
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart
+
+# ── Pipeline (unchanged from original) ──
+langgraph>=0.0.10
+langchain-google-genai
+langchain-core
+
+# ── Database ──
+sqlalchemy>=2.0.0
+pandas
+snowflake-sqlalchemy  # Snowflake support
+
+# ── Configuration ──
+python-dotenv
+pydantic>=2.0.0
+pydantic-settings
+
+# ── Testing ──
+pytest
+pytest-asyncio
+httpx
+
+# ── Rate Limiting ──
+slowapi

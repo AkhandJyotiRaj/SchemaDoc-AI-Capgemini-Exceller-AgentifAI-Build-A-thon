@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Architecture & Feasibility Specification</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #080c10;
+        --surface: #0e1419;
+        --border: #1e2d3d;
+        --cyan: #00d4ff;
+        --green: #00ff88;
+        --amber: #ffb800;
+        --red: #ff4d6d;
+        --purple: #b06eff;
+        --text: #c8d8e8;
+        --muted: #4a6077;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Syne", sans-serif;
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* Grid bg */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .container {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 0 32px 80px;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* ─── HEADER ─── */
+      .header {
+        padding: 56px 0 48px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 56px;
+        animation: fadeDown 0.6s ease both;
+      }
+
+      .round-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0, 212, 255, 0.08);
+        border: 1px solid rgba(0, 212, 255, 0.25);
+        border-radius: 4px;
+        padding: 6px 14px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: var(--cyan);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+      }
+
+      .round-badge::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        background: var(--cyan);
+        border-radius: 50%;
+        animation: pulse 2s ease infinite;
+      }
+
+      h1 {
+        font-size: clamp(28px, 4vw, 48px);
+        font952-weight: 800;
+        line-height: 1.1;
+        color: #fff;
+        letter-spacing: -0.02em;
+      }
+
+      h1 span {
+        color: var(--cyan);
+      }
+
+      .header-meta {
+        display: flex;
+        gap: 32px;
+        margin-top: 20px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      /* ─── SECTION TITLES ─── */
+      .section-label {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+
+      .section-label .num {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: var(--cyan);
+        background: rgba(0, 212, 255, 0.08);
+        border: 1px solid rgba(0, 212, 255, 0.2);
+        padding: 3px 8px;
+        border-radius: 3px;
+      }
+
+      .section-label h2 {
+        font-size: 20px;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -0.01em;
+      }
+
+      .section {
+        margin-bottom: 64px;
+        animation: fadeUp 0.7s ease both;
+      }
+      .section:nth-child(2) {
+        animation-delay: 0.1s;
+      }
+      .section:nth-child(3) {
+        animation-delay: 0.2s;
+      }
+      .section:nth-child(4) {
+        animation-delay: 0.3s;
+      }
+
+      /* ─── ARCHITECTURE STACK ─── */
+      .arch-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        position: relative;
+      }
+
+      .arch-layer {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+        transition:
+          border-color 0.2s,
+          transform 0.2s;
+        cursor: default;
+      }
+
+      .arch-layer:hover {
+        border-color: var(--layer-color, var(--cyan));
+        transform: translateX(4px);
+      }
+
+      .arch-layer .label-col {
+        background: var(--surface);
+        padding: 20px 22px;
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+      }
+
+      .arch-layer .layer-name {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--layer-color, var(--cyan));
+      }
+
+      .arch-layer .layer-tech {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .arch-layer .detail-col {
+        background: rgba(14, 20, 25, 0.5);
+        padding: 20px 24px;
+        font-size: 15px;
+        line-height: 1.75;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+      }
+
+      .arch-layer .detail-col code {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        background: rgba(0, 212, 255, 0.07);
+        padding: 2px 6px;
+        border-radius: 3px;
+        color: var(--cyan);
+      }
+
+      .connector {
+        display: flex;
+        justify-content: center;
+        padding: 4px 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+
+      /* ─── USER FLOW ─── */
+      .flow-phases {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        position: relative;
+      }
+
+      .flow-phases::before {
+        content: "";
+        position: absolute;
+        top: 38px;
+        left: calc(12.5% + 20px);
+        right: calc(12.5% + 20px);
+        height: 1px;
+        background: linear-gradient(90deg, var(--cyan), var(--purple));
+        opacity: 0.3;
+      }
+
+      .phase-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 20px 16px;
+        position: relative;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+
+      .phase-card:hover {
+        border-color: var(--phase-color);
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+      }
+
+      .phase-num {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 2px solid var(--phase-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--phase-color);
+        margin-bottom: 14px;
+      }
+
+      .phase-title {
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--phase-color);
+        margin-bottom: 12px;
+      }
+
+      .phase-steps {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .phase-steps li {
+        font-size: 13.5px;
+        color: var(--text);
+        padding-left: 16px;
+        position: relative;
+        line-height: 1.55;
+      }
+
+      .phase-steps li::before {
+        content: "›";
+        position: absolute;
+        left: 0;
+        color: var(--phase-color);
+        font-weight: 700;
+      }
+
+      /* ─── SCOPE TABLE ─── */
+      .scope-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .scope-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 24px;
+      }
+
+      .scope-card.full {
+        grid-column: 1 / -1;
+      }
+
+      .scope-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .scope-title::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .tag {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12.5px;
+        padding: 6px 12px;
+        border-radius: 4px;
+        border: 1px solid;
+      }
+
+      .tag.green {
+        color: var(--green);
+        border-color: rgba(0, 255, 136, 0.25);
+        background: rgba(0, 255, 136, 0.05);
+      }
+      .tag.amber {
+        color: var(--amber);
+        border-color: rgba(255, 184, 0, 0.25);
+        background: rgba(255, 184, 0, 0.05);
+      }
+      .tag.cyan {
+        color: var(--cyan);
+        border-color: rgba(0, 212, 255, 0.25);
+        background: rgba(0, 212, 255, 0.05);
+      }
+
+      .feasibility-bar {
+        margin-top: 16px;
+      }
+
+      .feasibility-bar .bar-label {
+        display: flex;
+        justify-content: space-between;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+
+      .bar-track {
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, var(--green), #00cc6a);
+        width: 0;
+        transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .risk-note {
+        margin-top: 14px;
+        padding: 14px 18px;
+        background: rgba(255, 184, 0, 0.05);
+        border: 1px solid rgba(255, 184, 0, 0.2);
+        border-radius: 5px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--amber);
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      .risk-note::before {
+        content: "⚠";
+        flex-shrink: 0;
+      }
+
+      /* ─── FOOTER ─── */
+      .footer {
+        border-top: 1px solid var(--border);
+        padding-top: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .status-pill {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--green);
+      }
+
+      .status-pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        background: var(--green);
+        border-radius: 50%;
+        animation: pulse 1.5s ease infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+
+      @keyframes fadeDown {
+        from {
+          opacity: 0;
+          transform: translateY(-16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 700px) {
+        .arch-layer {
+          grid-template-columns: 1fr;
+        }
+        .arch-layer .label-col {
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+        .flow-phases {
+          grid-template-columns: 1fr 1fr;
+        }
+        .flow-phases::before {
+          display: none;
+        }
+        .scope-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- HEADER -->
+      <header class="header">
+        <div class="round-badge">Hackathon · Round 2 · Mentor Review</div>
+        <h1>Architecture &<br /><span>Feasibility Spec</span></h1>
+        <div class="header-meta">
+          <span>Feb 21, 2026 · 12:00 – 15:00</span>
+          <span>Prototype Design &amp; Mentorship</span>
+        </div>
+      </header>
+
+      <!-- 1. SYSTEM ARCHITECTURE -->
+      <section class="section">
+        <div class="section-label">
+          <span class="num">01</span>
+          <h2>System Architecture</h2>
+        </div>
+
+        <div class="arch-stack">
+          <div class="arch-layer" style="--layer-color: #00d5ff">
+            <div class="label-col">
+              <span class="layer-name">Data Ingestion</span>
+              <span class="layer-tech" style="color: white"
+                >SQLAlchemy Core</span
+              >
+            </div>
+            <div class="detail-col">
+              Multi-dialect enterprise connections — SQLite, PostgreSQL,
+              Snowflake — via dialect-agnostic inspect methods. Structured
+              metadata extraction without ORM overhead.
+            </div>
+          </div>
+
+          <div class="connector" style="color: white">↓</div>
+
+          <div class="arch-layer" style="--layer-color: #b06eff">
+            <div class="label-col">
+              <span class="layer-name">Orchestration</span>
+              <span class="layer-tech" style="color: white"
+                >LangGraph State Machine</span
+              >
+            </div>
+            <div class="detail-col">
+              Cyclic state machine managing bidirectional flow between
+              deterministic SQL extraction and probabilistic AI enrichment.
+              Enables controlled retry loops and branching validation paths.
+            </div>
+          </div>
+
+          <div class="connector" style="color: white">↓</div>
+
+          <div class="arch-layer" style="--layer-color: #00ff88">
+            <div class="label-col">
+              <span class="layer-name" style="color: white"
+                >Enrichment Engine</span
+              >
+              <span class="layer-tech" style="color: white"
+                >Gemini 2.5 Flash · LangChain ReAct</span
+              >
+            </div>
+            <div class="detail-col">
+              ReAct pattern agent resolves ambiguous column taxonomy via
+              forensic log searches through tool binding. Infers business logic
+              and semantic meaning from raw schema metadata.
+            </div>
+          </div>
+
+          <div class="connector" style="color: white">↓</div>
+
+          <div class="arch-layer" style="--layer-color: #ff4d6d">
+            <div class="label-col">
+              <span class="layer-name">Validation Gate</span>
+              <span class="layer-tech" style="color: white"
+                >Deterministic Rule Engine</span
+              >
+            </div>
+            <div class="detail-col">
+              Compares LLM output schemas against SQL skeleton. Hard blocks on
+              data dropping or hallucination. Triggers mandatory retry loops —
+              LLM output is never passed downstream unverified.
+            </div>
+          </div>
+
+          <div class="connector" style="color: white">↓</div>
+
+          <div class="arch-layer" style="--layer-color: #ffb800">
+            <div class="label-col">
+              <span class="layer-name">Presentation</span>
+              <span class="layer-tech" style="color: white"
+                >Streamlit · streamlit-agraph</span
+              >
+            </div>
+            <div class="detail-col">
+              Streamlit runtime hosts the data dictionary interface, ER
+              visualization via (streamlit-agraph) force-directed graphs, and
+              the LLM chat interface for natural language SQL generation.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. USER FLOW -->
+      <section class="section">
+        <div class="section-label">
+          <span class="num">02</span>
+          <h2>User Flow</h2>
+        </div>
+
+        <div class="flow-phases">
+          <div class="phase-card" style="--phase-color: #00d4ff">
+            <div class="phase-num">1</div>
+            <div class="phase-title">Initialization</div>
+            <ul class="phase-steps">
+              <li>Provide connection string</li>
+              <li>System executes extraction</li>
+              <li>Mathematical profiling runs</li>
+              <li>AI enrichment + validation loop</li>
+            </ul>
+          </div>
+
+          <div class="phase-card" style="--phase-color: #b06eff">
+            <div class="phase-num">2</div>
+            <div class="phase-title">Review</div>
+            <ul class="phase-steps">
+              <li>Enriched Data Dictionary</li>
+              <li>Inspect data health scores</li>
+              <li>Review null rates per column</li>
+              <li>AI-inferred business logic</li>
+            </ul>
+          </div>
+
+          <div class="phase-card" style="--phase-color: #00ff88">
+            <div class="phase-num">3</div>
+            <div class="phase-title">Exploration</div>
+            <ul class="phase-steps">
+              <li>Force-Directed Knowledge Graph</li>
+              <li>Trace data lineage visually</li>
+              <li>Navigate FK dependencies</li>
+              <li>Topological relationship map</li>
+            </ul>
+          </div>
+
+          <div class="phase-card" style="--phase-color: #ffb800">
+            <div class="phase-num">4</div>
+            <div class="phase-title">Query</div>
+            <ul class="phase-steps">
+              <li>LLM Chat Interface</li>
+              <li>Natural language queries</li>
+              <li>Schema-aware SQL generation</li>
+              <li>Enriched context grounding</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. SCOPE & FEASIBILITY -->
+      <section class="section">
+        <div class="section-label">
+          <span class="num">03</span>
+          <h2>Project Scope &amp; Feasibility</h2>
+        </div>
+
+        <div class="scope-grid">
+          <div class="scope-card">
+            <div class="scope-title" style="color: white">In Scope</div>
+            <div class="tag-list">
+              <span class="tag cyan">Multi-DB Extraction</span>
+              <span class="tag cyan">Math Profiling</span>
+              <span class="tag cyan">Freshness Scoring</span>
+              <span class="tag cyan">Completeness Metrics</span>
+              <span class="tag cyan">AI Enrichment</span>
+              <span class="tag cyan">Graph Generation</span>
+              <span class="tag cyan">NL → SQL</span>
+            </div>
+          </div>
+
+          <div class="scope-card">
+            <div class="scope-title" style="color: white">
+              Verified &amp; Operational
+            </div>
+            <div class="tag-list">
+              <span class="tag green">Backend Extraction</span>
+              <span class="tag green">LangGraph Orchestration</span>
+              <span class="tag green">Streamlit Interface</span>
+              <span class="tag amber">Olist Dataset Ingestion</span>
+            </div>
+          </div>
+
+          <div class="scope-card full">
+            <div class="scope-title" style="color: white">
+              Feasibility Assessment
+            </div>
+            <div class="feasibility-bar">
+              <div class="bar-label">
+                <span style="color: white">Overall Feasibility</span>
+                <span id="feas-pct">—</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" id="feasBar"></div>
+              </div>
+            </div>
+            <div class="risk-note">
+              Primary remaining technical risk: constrained dataset ingestion
+              with the Olist dataset. Core extraction logic and LangGraph
+              orchestration are verified and operational.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FOOTER -->
+      <footer class="footer">
+        <span>Mentor Review Deliverable · Round 2</span>
+        <span class="status-pill">Core Backend Operational</span>
+      </footer>
+    </div>
+
+    <script>
+      // Animate feasibility bar on load
+      window.addEventListener("load", () => {
+        setTimeout(() => {
+          const bar = document.getElementById("feasBar");
+          const pct = document.getElementById("feas-pct");
+          bar.style.width = "85%";
+          pct.textContent = "HIGH (85%)";
+        }, 600);
+      });
+
+      // Intersection observer for sections
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) e.target.style.opacity = "1";
+          });
+        },
+        { threshold: 0.1 },
+      );
+
+      document.querySelectorAll(".section").forEach((s) => observer.observe(s));
+    </script>
+  </body>
+</html>

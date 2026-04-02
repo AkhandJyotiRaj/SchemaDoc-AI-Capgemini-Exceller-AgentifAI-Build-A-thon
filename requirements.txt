@@ -1,0 +1,28 @@
+# Core Frameworks
+langgraph>=0.0.10
+langchain-google-genai
+langchain-core
+
+# Data & Database
+sqlalchemy>=2.0.0
+pandas
+sqlglot
+psycopg2-binary   # PostgreSQL support
+pymysql            # MySQL support
+snowflake-sqlalchemy  # Snowflake support
+
+# API Server
+fastapi>=0.100.0
+uvicorn[standard]
+pydantic>=2.0.0
+pydantic-settings
+
+# Utilities
+python-dotenv
+
+# Rate Limiting
+slowapi
+
+# UI
+streamlit
+streamlit-agraph

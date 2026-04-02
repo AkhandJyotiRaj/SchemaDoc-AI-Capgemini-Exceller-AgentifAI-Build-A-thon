@@ -1,0 +1,231 @@
+import json
+import re
+import copy
+import logging
+import hashlib
+from decimal import Decimal
+from typing import Dict, Any, List, Union
+from datetime import datetime
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
+from langchain_core.tools import tool
+
+from src.core.state import AgentState
+from src.core.config import AppConfig
+from src.backend.services.usage_search import usage_search
+
+logger = logging.getLogger(__name__)
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
+@tool
+def lookup_column_usage(column_name: str) -> str:
+    """
+    Searches application logs to see how a specific column is used in SQL queries.
+    Returns snippets of SQL code where the column appears.
+    """
+    return usage_search.search_column_usage(column_name)
+
+def _extract_text_from_payload(content: Union[str, List, Dict]) -> str:
+    """
+    Robustly extracts text from LangChain content payload.
+    """
+    if isinstance(content, str):
+        return content
+    
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict):
+                if "text" in part:
+                    text_parts.append(part["text"])
+                elif part.get("type") == "text":
+                     text_parts.append(part.get("text", ""))
+            elif isinstance(part, str):
+                text_parts.append(part)
+        return "".join(text_parts)
+    
+    if isinstance(content, dict) and "text" in content:
+        return content["text"]
+        
+    return str(content)
+
+def _clean_json_string(s: str) -> str:
+    """
+    Regex-based JSON extractor. Finds the outermost valid JSON object.
+    Input: "Here is the data: ```json\n{ "table": ... }\n``` thanks."
+    Output: { "table": ... }
+    """
+    if not s: 
+        return ""
+    
+    # 1. Try finding a markdown block first (most reliable)
+    json_block = re.search(r'```json\s*(\{.*?\})\s*```', s, re.DOTALL)
+    if json_block:
+        return json_block.group(1)
+
+    # 2. Try finding any code block
+    code_block = re.search(r'```\s*(\{.*?\})\s*```', s, re.DOTALL)
+    if code_block:
+        return code_block.group(1)
+        
+    # 3. Fallback: Find the outermost curly braces
+    # This regex looks for { followed by anything, ending with }
+    # It uses a "greedy" match to find the largest possible object
+    match = re.search(r'(\{.*\})', s, re.DOTALL)
+    if match:
+        return match.group(1)
+        
+    # 4. Last resort: Return raw string (might fail parsing)
+    return s.strip()
+
+def enrich_metadata_node(state: AgentState) -> Dict[str, Any]:
+    schema_raw = state.get("schema_raw", {})
+    previous_errors = state.get("errors", [])
+    
+    # --- 1. Caching Logic ---
+    schema_str = json.dumps(list(schema_raw.keys()), sort_keys=True)
+    current_hash = hashlib.md5(schema_str.encode()).hexdigest()
+    cache_file = AppConfig.DATA_DIR / "schema_cache.json"
+    
+    if not previous_errors and cache_file.exists():
+        try:
+            with open(cache_file, "r") as f:
+                cache = json.load(f)
+            if cache.get("hash") == current_hash:
+                logger.info("Schema unchanged. Using cached enrichment.")
+                return {"schema_enriched": cache["data"], "schema_hash": current_hash}
+        except Exception:
+            pass
+
+    # --- 2. Prompt Setup ---
+    simplified_schema = {
+        table: {col: meta["original_type"] for col, meta in data["columns"].items()}
+        for table, data in schema_raw.items()
+    }
+    table_list = list(simplified_schema.keys())
+
+    system_prompt = f"""You are a Data Architect. Generate a JSON Data Dictionary.
+
+INPUT SCHEMA ({len(table_list)} tables): {json.dumps(simplified_schema, separators=(',', ':'))}
+
+RULES:
+1. Output ONLY valid JSON — no markdown fences, no explanation text.
+2. You MUST include ALL {len(table_list)} tables: {json.dumps(table_list)}
+3. You MUST include EVERY column listed for each table — do not skip any.
+4. If a column is ambiguous (e.g. 'val_x', 'status'), call 'lookup_column_usage' first.
+5. Keep descriptions concise (1 sentence).
+
+OUTPUT FORMAT:
+{{
+  "TableName": {{
+    "columns": {{
+      "col": {{"description":"...","tags":["PII"]}}
+    }}
+  }}
+}}"""
+
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content="Begin enrichment.")
+    ]
+    
+    if previous_errors:
+         messages.append(HumanMessage(content=f"Previous errors to fix: {json.dumps(previous_errors)}"))
+
+    # --- 3. The Execution Loop ---
+    llm = ChatGoogleGenerativeAI(
+        model=AppConfig.GEMINI_MODEL,
+        google_api_key=AppConfig.GEMINI_API_KEY,
+        temperature=0
+    )
+    llm_with_tools = llm.bind_tools([lookup_column_usage])
+
+    max_turns = 6
+    turn = 0
+    final_content = ""
+
+    while turn < max_turns:
+        turn += 1
+        try:
+            response = llm_with_tools.invoke(messages)
+            messages.append(response)
+
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    logger.info(f"Turn {turn}: Calling tool '{tool_call['name']}' for {tool_call['args']}")
+                    tool_result = usage_search.search_column_usage(**tool_call["args"])
+                    messages.append(ToolMessage(content=str(tool_result), tool_call_id=tool_call['id']))
+                continue
+            
+            raw_content = _extract_text_from_payload(response.content)
+            if raw_content.strip():
+                logger.info(f"Turn {turn}: Received content from AI.")
+                final_content = raw_content
+                break
+            break
+
+        except Exception as e:
+            return {"errors": [str(e)]}
+
+    # --- 4. Parsing Logic ---
+    try:
+        logger.info(f"EXTRACTING JSON FROM: {final_content[:200]}...")
+        cleaned = _clean_json_string(final_content)
+        parsed_enrichment = json.loads(cleaned)
+        
+        if isinstance(parsed_enrichment, list):
+            logger.warning("AI returned a LIST of tables. Converting to Dict...")
+            # Attempt to flatten if it's [{ "table": ... }, { "table2": ... }]
+            new_dict = {}
+            for item in parsed_enrichment:
+                if isinstance(item, dict):
+                    new_dict.update(item)
+            parsed_enrichment = new_dict
+
+        # Merge Logic with Logging
+        final_enriched_state = {}
+        logger.info(f"MERGE: AI returned keys: {list(parsed_enrichment.keys())}")
+        logger.info(f"MERGE: Expected keys: {list(schema_raw.keys())}")
+
+        for table_name, enriched_data in parsed_enrichment.items():
+            # Normalize keys for comparison (handle simple case differences)
+            match_found = False
+            for raw_key in schema_raw.keys():
+                if raw_key.lower() == table_name.lower():
+                    # Deep copy to prevent mutation of schema_raw state
+                    table_state = copy.deepcopy(schema_raw[raw_key])
+                    
+                    # Selective merge: only AI-enrichment fields, never overwrite stats
+                    if "columns" in enriched_data:
+                        for col_name, enriched_meta in enriched_data["columns"].items():
+                            if col_name in table_state["columns"]:
+                                for field in ("description", "tags", "business_logic", "potential_pii"):
+                                    if field in enriched_meta:
+                                        table_state["columns"][col_name][field] = enriched_meta[field]
+                    
+                    final_enriched_state[raw_key] = table_state
+                    match_found = True
+                    break
+            
+            if not match_found:
+                logger.warning(f"SKIPPING AI Table '{table_name}' - No match in raw schema.")
+
+        # Cache Write
+        with open(cache_file, "w") as f:
+            json.dump({"hash": current_hash, "data": final_enriched_state}, f, cls=DecimalEncoder)
+
+        return {
+            "schema_enriched": final_enriched_state,
+            "schema_hash": current_hash
+        }
+
+    except Exception as e:
+        logger.error(f"Parsing/Merge Error: {e}")
+        return {"errors": [f"Enrichment Error: {str(e)}"]}
