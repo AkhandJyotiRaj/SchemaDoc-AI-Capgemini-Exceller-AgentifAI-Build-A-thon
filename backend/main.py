@@ -106,3 +106,12 @@ async def root():
         "docs": "/api/docs",
         "health": "/api/health",
     }
+    
+@app.get("/debug/db")
+def check_db():
+    import os
+    path = "./data"
+    return {
+        "exists": os.path.exists(path),
+        "files": os.listdir(path) if os.path.exists(path) else []
+    }
