@@ -9,6 +9,8 @@ Capgemini Exceller AgentifAI Build-A-thon — Team Penta Core_
 Rahul Kumar  (Team Lead) · 
 [![Live Demo](https://img.shields.io/badge/Live-Demo-blue?style=for-the-badge)](https://schema-doc-ai-capgemini-exceller-ag.vercel.app/)
 
+🔗 https://schema-doc-ai-capgemini-exceller-ag.vercel.app/
+
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Orchestration-1C3C3C?logo=langchain&logoColor=white)](https://github.com/langchain-ai/langgraph)
